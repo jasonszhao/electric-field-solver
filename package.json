@@ -1,0 +1,15 @@
+{
+  "name": "electric-field-solver",
+  "version": "1.0.0",
+  "description": "",
+  "main": "field-solver.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "gl-matrix": "^2.7.1",
+    "three": "^0.94.0"
+  }
+}
