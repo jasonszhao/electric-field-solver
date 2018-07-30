@@ -58,24 +58,6 @@ function animate() {
     controls.update();
     renderer.render(scene, camera)
 
-	//field = find_field(r)
-
-	//if(vec2.len(field) > 10) return;
-
-	//vec2.scale
-	//( delta_r
-		//, field, -nabla)
-	//vec2.add
-	//( r
-		//, r, delta_r)
-
-	//delta_g = vec2.dot(field, r)
-	//g += delta_g
-
-
-	//geometry.vertices.push(new THREE.Vector3(r[0], g/100, r[1]))
-	//geometry.verticesNeedUpdate = true
-
 	window.requestAnimationFrame(animate)
 }
 
@@ -83,9 +65,18 @@ function animate() {
 
 //-----------
 const small_fast_len2 = a => 
-	Math.abs(a[0] + a[1])
+	Math.abs(a[0]) + Math.abs(a[1])
 
+const RelDif = (a, b) => {
+	let c = Math.abs(a);
+	let d = Math.abs(b);
 
+	d = Math.max(c, d);
+
+	return d == 0.0 ? 0.0 : Math.abs(a - b) / d;
+}
+
+const float_equal = (a, b) => RelDif(a, b) <= 0.01
 
 const charges = [
 	[-100, 0, 10],
@@ -124,22 +115,79 @@ const find_field = position => {
 	return field_output
 }
 
+const _AB_triangle_area = new Float32Array(3)
+const _AC_triangle_area = new Float32Array(3)
+const _product_triangle_area = new Float32Array(3)
+const triangle_area = (a, b, c) => {
+    vec3.sub(_AB_triangle_area, b, a)
+    vec3.sub(_AC_triangle_area, c, a)
+    vec3.cross(
+        _product_triangle_area, 
+        _AB_triangle_area, 
+        _AC_triangle_area
+    )
+
+    return vec3.len(_product_triangle_area) / 2;
+}
+
+console.assert(float_equal(
+    triangle_area([0,0,1], [0,1,0], [0,0,0]), 
+    0.5))
+
+//const error_area = (points) => {
+    //let area = 0;
+    //const n = points.length
+
+    //for(let i = 0; i<n; i++) {
+        //a = points[i];
+        //b = points[(i + 1) % n];
+        //c = points[(i + 2) % n];
+
+        //area += triangle_area(a, b, c);
+    //}
+
+    //return area;
+//}
+
 //https://threejs.org/docs/index.html#api/geometries/ParametricBufferGeometry
 
-//generate some points
+
+// generate some points
+/**
+ *  TODO: Make this work efficiently for straight lines. Currently, it maxes out
+ *      the hard limit of iterations.
+ */
+
+/**
+ *  TODO: figure out a way to "plot" a vertex so that we can minimize the 
+ *  the number of vertices we render. 
+ * 
+ *  Our constraint is, of course, that we don't get too far off the curve. We 
+ *  can measure this subjectively (which is probably a terrible idea, because
+ *  we have no idea where to start and the goal) or objectively, using an error 
+ *  metric: 
+ * 
+ *		DONE(!): explore using area as an error metric. Find area of a 3D-"polygon" 
+ *    		by dividing the polygon into triangles in space and adding up the 
+ *          areas. 
+ *      TODO: explore Lagrange error / remainder. The Lagrange error is an 
+ *        	integral. See how this relates to my area. 
+ */
 const geometries = []
 let total_vertices = 0
+let total_iterations = 0
 
 function generate_field_line(starting_point, g_0) {
-	//const r_0 = [-90, 50]
-	//const g_0 = 0
-	const nabla = 40
-	const resolution = 10
+	const nabla = 10
+	const min_resolution = 3
+    
+    const max_error_area = 0.25
 
-	const iterations = 60000000
-	const vertices = new Float32Array(3 * iterations / resolution + 3)
+    const min_average_resolution = 100
+
+	const iterations = 6e8
+	const vertices = new Float32Array(3 * iterations / min_average_resolution + 3)
 	vertices_i = 0
-
 
 
 	const r = starting_point.slice(0, 2)
@@ -156,6 +204,15 @@ function generate_field_line(starting_point, g_0) {
 	let delta_pos_prev = Float32Array.of(1,1,1)
 	let tmp
 
+    let geometry_testing_start_i = 0
+    let geometry_testing_start_vertex = 
+            Float32Array.of(starting_point[0], g_0 * 100, starting_point[1])
+    let geometry_testing_prev_vertex = new Float32Array(3)
+    let geometry_testing_current_vertex = new Float32Array(3)
+
+    let geometry_testing_error_area = 0
+
+
 	let i = 0
 	for (; i<iterations; i++) {
 		const field = find_field(r)
@@ -163,23 +220,6 @@ function generate_field_line(starting_point, g_0) {
 		const mag_field = small_fast_len2(field)
 		if(mag_field > 5) break;
 		
-// TODO: test if this works well for straight lines
-
-/**
- *  TODO: figure out a way to "plot" a vertex so that we can minimize the 
- *  the number of vertices we render. 
- * 
- *  Our constraint is, of course, that we don't get too far off the curve. We 
- *  can measure this subjectively (which is probably a terrible idea, because
- *  we have no idea where to start and the goal) or objectively, using an error 
- *  metric: 
- * 
- *		TODO: explore using area as an error metric. Find area of a 3D-"polygon" 
- *    		by dividing the polygon into triangles in space and adding up the 
- *          areas. 
- *      TODO: explore Lagrange error / remainder. The Lagrange error is an 
- *        	integral. See how this relates to my area. 
- */
 
 		const mag_second_difference = vec3.distance(delta_pos_prev, delta_pos_prev_prev) || 1.0
 		const mag_delta_pos_prev = vec3.length(delta_pos_prev)
@@ -205,19 +245,44 @@ function generate_field_line(starting_point, g_0) {
 		delta_pos_prev[1] = delta_r[1]
 		delta_pos_prev[2] = delta_g
 
-		if(i % resolution === 0) {
-			vertices[vertices_i++] = r[0]
-			vertices[vertices_i++] = g * 100
-			vertices[vertices_i++] = r[1]
-			total_vertices++
+
+        geometry_testing_current_vertex[0] = r[0]
+        geometry_testing_current_vertex[1] = g * 100
+        geometry_testing_current_vertex[2] = r[1]
+
+		if(i - geometry_testing_start_i > min_resolution) {
+
+            geometry_testing_error_area =+ triangle_area(
+                geometry_testing_start_vertex,
+                geometry_testing_prev_vertex,
+                geometry_testing_current_vertex)
+
+            if(geometry_testing_error_area > max_error_area) {
+                vertices[vertices_i++] = geometry_testing_prev_vertex[0]
+                vertices[vertices_i++] = geometry_testing_prev_vertex[1]
+                vertices[vertices_i++] = geometry_testing_prev_vertex[2]
+                total_vertices++
+
+                geometry_testing_start_vertex[0] = geometry_testing_prev_vertex[0]
+                geometry_testing_start_vertex[1] = geometry_testing_prev_vertex[1]
+                geometry_testing_start_vertex[2] = geometry_testing_prev_vertex[2]
+
+                geometry_testing_start_i = i - 1
+
+                console.log(`pushed (${Math.floor(i/iterations * 100)}%): `, 
+                    r[0], g * 100, r[1], `field = ${field}`, `mag_field = ${mag_field}`)
+            }
 			
-			if(i % (resolution * 10000) === 0) {
-				console.log(`pushing (${Math.floor(i/iterations * 100)}%): `, 
-				r[0], g * 100, r[1], `field = ${field}`, `mag_field = ${mag_field}`)
-			}
 		}
+        geometry_testing_prev_vertex[0] = geometry_testing_current_vertex[0]
+        geometry_testing_prev_vertex[1] = geometry_testing_current_vertex[1]
+        geometry_testing_prev_vertex[2] = geometry_testing_current_vertex[2]
+
 	}
-	console.log(`Finished with ${i} iterations (proportion of limit: ${(i/iterations).toExponential()})`)
+	console.log(`Finished line with ${i} iterations (ratio to max: ${(i/iterations).toExponential()})\n` + 
+        `    and ${vertices_i/3} vertices (ratio to max: ${(vertices_i / 3 / (iterations/min_average_resolution).toExponential())}).`)
+
+    total_iterations += i
 
 	const material = new THREE.LineBasicMaterial({color: 0x0000ff})
 	const geometry = new THREE.BufferGeometry()
@@ -225,13 +290,14 @@ function generate_field_line(starting_point, g_0) {
 	const line = new THREE.Line(geometry, material)
 	scene.add(line)
 	
-	geometry.setDrawRange(0, Math.floor(i / resolution))
+	geometry.setDrawRange(0, vertices_i / 3)
 
 	geometries.push(geometry)
 
 }
 
 
+///**************
 const starting_points = [] // Array([r[0], r[1], <-1 or 1>])
 const n = 12
 const distance_from_charge = 5
@@ -244,26 +310,32 @@ const starting_angle = 0
 const ending_angle = Math.PI * 2
 
 for(let i=0; i<n; i++) {
-	const angle = starting_angle + i / n * (ending_angle - starting_angle)
-	
-	if(angle % Math.PI < Number.EPSILON) continue
+    const angle = starting_angle + i / n * (ending_angle - starting_angle)
+    
+    //if(angle % Math.PI < Number.EPSILON) continue
 
-	starting_points.push([
-		center[0] + distance_from_charge * Math.cos(angle),
-		center[1] + distance_from_charge * Math.sin(angle),
-		1,
-	])
+    starting_points.push([
+        center[0] + distance_from_charge * Math.cos(angle),
+        center[1] + distance_from_charge * Math.sin(angle),
+        1,
+    ])
 }
 
 //this is parallelizable
 starting_points.forEach(starting_point => {
-	generate_field_line(starting_point, 0)
+    generate_field_line(starting_point, 0)
 })
-console.log('total_vertices: ' + total_vertices)
+
+/************/
 
 //generate_field_line([-110, -10], 0)
 //generate_field_line([-99, -10], 0)
 
 //generate_field_line([-190, 500], 0)
+console.log(
+`Finished all lines. 
+    total_vertices=${total_vertices.toExponential()}, 
+    total_iterations=${total_iterations.toExponential()}`)
 
 animate()
+
