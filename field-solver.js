@@ -125,13 +125,24 @@ let total_time_ms = 0
 // TODO: support fallbacks
 const worker_pool = []
 
-for(let i = 1; i < Math.max(2, window.navigator.hardwareConcurrency); i++) {
+
+let cores = window.navigator.hardwareConcurrency
+if(!cores) {
+    // this makes me angry. it's not worth the effort
+    
+    const w = window.screen.width * window.devicePixelRatio
+    const h = window.screen.height * window.devicePixelRatio
+    
+    if (w === 2880 && h === 1800) { cores = 8 } // MacBook Pro 15" retina
+    else { cores = 4 }
+}
+
+for(let i = 1; i < Math.max(2, cores); i++) {
     worker_pool.push({
         worker: new Worker('field-solver-worker.js'),
         is_busy: false
     })
 }
-
 
 
 const queue = []
