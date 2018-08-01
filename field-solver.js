@@ -22,9 +22,11 @@ renderer.setSize(window.innerWidth, window.innerHeight)
 document.body.appendChild(renderer.domElement)
 
 /**********************************************************
- * Code by Matt Hobbs
+ * Original Code by Matt Hobbs
  * released under Creative Commons Attribution International 4.0 (CC BY 4.0)
  * https://nooshu.github.io/lab/2011-05-15-debug-axes-in-three-js/
+ *
+ * I updated the code to work with newer versions of Three
  **********************************************************/
 var debugaxis = function(axisLength){
     //Shorten the vertex function
@@ -35,7 +37,7 @@ var debugaxis = function(axisLength){
     //Create axis (point1, point2, colour)
     function createAxis(p1, p2, color){
             var line, lineGeometry = new THREE.Geometry(),
-            lineMat = new THREE.LineBasicMaterial({color: color, lineWidth: 1});
+            lineMat = new THREE.LineBasicMaterial({color: color, linewidth: 1});
             lineGeometry.vertices.push(p1, p2);
             line = new THREE.Line(lineGeometry, lineMat);
             scene.add(line);
@@ -64,75 +66,16 @@ function animate() {
 
 
 //-----------
-const small_fast_len2 = a => 
-	Math.abs(a[0]) + Math.abs(a[1])
-
-const RelDif = (a, b) => {
-	let c = Math.abs(a);
-	let d = Math.abs(b);
-
-	d = Math.max(c, d);
-
-	return d == 0.0 ? 0.0 : Math.abs(a - b) / d;
-}
-
-const float_equal = (a, b) => RelDif(a, b) <= 0.01
-
-const charges = [
-	[-100, 0, 10],
-	 [100, 0, -10]
-	]
 
 charges.forEach(c => {
-	const geometry = new THREE.CylinderBufferGeometry( 1, 1, 200, 32 );
+	const geometry = new THREE.CylinderBufferGeometry( 1, 1, 800, 32 );
 	const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
 	const cylinder = new THREE.Mesh( geometry, material );
 	cylinder.position.x = c[0]
-	cylinder.position.y = c[1]
+	cylinder.position.z = c[1]
 	scene.add( cylinder );
 })
 
-
-
-const direction = vec2.create()
-const field_i = [0,0]
-const field_output = [0,0]
-
-const find_field = position => {
-	field_output[0] = 0
-	field_output[1] = 0
-
-	for(let i = 0; i<charges.length; i++) {
-		vec2.sub(direction, position, charges[i])
-		
-		const distance = vec2.len(direction)
-		
-		vec2.scale(field_i, direction, -charges[i][2] * Math.pow(distance, -3))
-		
-		vec2.add(field_output, field_output, field_i)
-	}
-
-	return field_output
-}
-
-const _AB_triangle_area = new Float32Array(3)
-const _AC_triangle_area = new Float32Array(3)
-const _product_triangle_area = new Float32Array(3)
-const triangle_area = (a, b, c) => {
-    vec3.sub(_AB_triangle_area, b, a)
-    vec3.sub(_AC_triangle_area, c, a)
-    vec3.cross(
-        _product_triangle_area, 
-        _AB_triangle_area, 
-        _AC_triangle_area
-    )
-
-    return vec3.len(_product_triangle_area) / 2;
-}
-
-console.assert(float_equal(
-    triangle_area([0,0,1], [0,1,0], [0,0,0]), 
-    0.5))
 
 //const error_area = (points) => {
     //let area = 0;
@@ -159,7 +102,7 @@ console.assert(float_equal(
  */
 
 /**
- *  TODO: figure out a way to "plot" a vertex so that we can minimize the 
+ *  DONE: figure out a way to "plot" a vertex so that we can minimize the 
  *  the number of vertices we render. 
  * 
  *  Our constraint is, of course, that we don't get too far off the curve. We 
@@ -173,135 +116,119 @@ console.assert(float_equal(
  *      TODO: explore Lagrange error / remainder. The Lagrange error is an 
  *        	integral. See how this relates to my area. 
  */
+
 const geometries = []
 let total_vertices = 0
 let total_iterations = 0
+let total_time_ms = 0
 
-function generate_field_line(starting_point, g_0) {
-	const nabla = 10
-	const min_resolution = 3
+// TODO: support fallbacks
+const worker_pool = []
+
+for(let i = 1; i < Math.max(2, window.navigator.hardwareConcurrency); i++) {
+    worker_pool.push({
+        worker: new Worker('field-solver-worker.js'),
+        is_busy: false
+    })
+}
+
+
+
+const queue = []
+const processed = []
+
+
+//const queue_item = (worker_info) => ({
+    //wrapped_f,
+    //args,
+    //worker_info
+//})
+function queue_pluck_one() {
+    const available_worker = worker_pool.find(w => !w.is_busy)
+
+    if(available_worker === undefined)
+        return
+
+    let job = queue.shift()
+    if(job !== undefined) {
+        available_worker.is_busy = true
+        job(available_worker)
+    }
+}
+function queue_push(f, args) {
+    // Promises automatically unnest themselves
+    return new Promise((resolve, reject) => {
+        const linked_job = worker_info => 
+            run_f(f, args)(worker_info)
+                .then(x => {
+                    processed.push(x)
+                    return x
+                })
+                .then(x => {
+                    queue_pluck_one()
+                    return x
+                })
+                .then(resolve)
+
+        queue.push(linked_job)
+
+        queue_pluck_one()
+    })
+}
+
+const run_f = (f, args) => worker_info => {
+    return f.apply(null, [worker_info.worker, ...args])
     
-    const max_error_area = 0.25
+        //the show must go on no matter what.
+        .catch(e => console.error(e))
+        
+        .then(result => {
+            worker_info.is_busy = false
 
-    const min_average_resolution = 100
-
-	const iterations = 6e8
-	const vertices = new Float32Array(3 * iterations / min_average_resolution + 3)
-	vertices_i = 0
-
-
-	const r = starting_point.slice(0, 2)
-	let g = g_0
-
-	const delta_r = Float32Array.of(0,0)
-
-	vertices[vertices_i++] = r[0]
-	vertices[vertices_i++] = g
-	vertices[vertices_i++] = r[1]
-
-
-	let delta_pos_prev_prev = Float32Array.of(-1,-1,-1)
-	let delta_pos_prev = Float32Array.of(1,1,1)
-	let tmp
-
-    let geometry_testing_start_i = 0
-    let geometry_testing_start_vertex = 
-            Float32Array.of(starting_point[0], g_0 * 100, starting_point[1])
-    let geometry_testing_prev_vertex = new Float32Array(3)
-    let geometry_testing_current_vertex = new Float32Array(3)
-
-    let geometry_testing_error_area = 0
-
-
-	let i = 0
-	for (; i<iterations; i++) {
-		const field = find_field(r)
-
-		const mag_field = small_fast_len2(field)
-		if(mag_field > 5) break;
-		
-
-		const mag_second_difference = vec3.distance(delta_pos_prev, delta_pos_prev_prev) || 1.0
-		const mag_delta_pos_prev = vec3.length(delta_pos_prev)
-
-		const factor = Math.pow(mag_delta_pos_prev / mag_second_difference, 1/2)
-
-		vec2.scale
-			( delta_r
-			, field, -nabla * factor) 
-		vec2.add
-			( r
-			, r, delta_r)
-
-		const delta_g = vec2.dot(field, delta_r)
-		g += delta_g
-		
-		
-		tmp = delta_pos_prev
-		delta_pos_prev = delta_pos_prev_prev
-		delta_pos_prev_prev = tmp
-		
-		delta_pos_prev[0] = delta_r[0]
-		delta_pos_prev[1] = delta_r[1]
-		delta_pos_prev[2] = delta_g
-
-
-        geometry_testing_current_vertex[0] = r[0]
-        geometry_testing_current_vertex[1] = g * 100
-        geometry_testing_current_vertex[2] = r[1]
-
-		if(i - geometry_testing_start_i > min_resolution) {
-
-            geometry_testing_error_area =+ triangle_area(
-                geometry_testing_start_vertex,
-                geometry_testing_prev_vertex,
-                geometry_testing_current_vertex)
-
-            if(geometry_testing_error_area > max_error_area) {
-                vertices[vertices_i++] = geometry_testing_prev_vertex[0]
-                vertices[vertices_i++] = geometry_testing_prev_vertex[1]
-                vertices[vertices_i++] = geometry_testing_prev_vertex[2]
-                total_vertices++
-
-                geometry_testing_start_vertex[0] = geometry_testing_prev_vertex[0]
-                geometry_testing_start_vertex[1] = geometry_testing_prev_vertex[1]
-                geometry_testing_start_vertex[2] = geometry_testing_prev_vertex[2]
-
-                geometry_testing_start_i = i - 1
-
-                console.log(`pushed (${Math.floor(i/iterations * 100)}%): `, 
-                    r[0], g * 100, r[1], `field = ${field}`, `mag_field = ${mag_field}`)
+            return {
+                f,
+                args,
+                worker_info,
+                result
             }
-			
-		}
-        geometry_testing_prev_vertex[0] = geometry_testing_current_vertex[0]
-        geometry_testing_prev_vertex[1] = geometry_testing_current_vertex[1]
-        geometry_testing_prev_vertex[2] = geometry_testing_current_vertex[2]
+        })
+}
 
-	}
-	console.log(`Finished line with ${i} iterations (ratio to max: ${(i/iterations).toExponential()})\n` + 
-        `    and ${vertices_i/3} vertices (ratio to max: ${(vertices_i / 3 / (iterations/min_average_resolution).toExponential())}).`)
+function create_line(worker, starting_point, g_0) {
+    worker.postMessage([starting_point, g_0])
 
-    total_iterations += i
+    return new Promise((resolve, reject) => {
+        worker.onmessage = function(event) {
+            const vertices = event.data.result
+            const n_vertices = event.data.n_vertices
 
-	const material = new THREE.LineBasicMaterial({color: 0x0000ff})
-	const geometry = new THREE.BufferGeometry()
-	geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) )
-	const line = new THREE.Line(geometry, material)
-	scene.add(line)
-	
-	geometry.setDrawRange(0, vertices_i / 3)
+            total_vertices += n_vertices
+            total_iterations += event.data.iterations
+            total_time_ms += event.data.time_ms
 
-	geometries.push(geometry)
+            const material = new THREE.LineBasicMaterial({color: 0x0000ff})
+            const geometry = new THREE.BufferGeometry()
+            geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) )
+            const line = new THREE.Line(geometry, material)
+            scene.add(line)
+
+            geometry.setDrawRange(0, n_vertices)
+
+            geometries.push(geometry)
+
+            resolve(vertices)
+        }
+    })
 
 }
 
 
-///**************
+
+//**************
 const starting_points = [] // Array([r[0], r[1], <-1 or 1>])
-const n = 12
+const n = 24
 const distance_from_charge = 5
-const center = [-100, 0]
+const centers = charges.filter(s => s[2] > 0)
 
 //const starting_angle =  Math.PI * 5 / 6 
 //const ending_angle = -Math.PI * 5 / 6
@@ -311,31 +238,47 @@ const ending_angle = Math.PI * 2
 
 for(let i=0; i<n; i++) {
     const angle = starting_angle + i / n * (ending_angle - starting_angle)
-    
-    //if(angle % Math.PI < Number.EPSILON) continue
 
-    starting_points.push([
-        center[0] + distance_from_charge * Math.cos(angle),
-        center[1] + distance_from_charge * Math.sin(angle),
-        1,
-    ])
+    if(angle % Math.PI < Number.EPSILON) continue
+
+    centers.forEach(center => {
+        starting_points.push([
+            center[0] + distance_from_charge * Math.cos(angle),
+            center[1] + distance_from_charge * Math.sin(angle),
+            1,
+        ])
+    })
 }
 
-//this is parallelizable
+const promises = []
+
 starting_points.forEach(starting_point => {
-    generate_field_line(starting_point, 0)
+    promises.push(queue_push( create_line, [starting_point, 0]))
 })
 
 /************/
 
-//generate_field_line([-110, -10], 0)
-//generate_field_line([-99, -10], 0)
+const get_vertices_export = () =>
+    JSON.stringify(
+        geometries.map(g => Array.from(
+            g.attributes.position.array.slice(0, g.drawRange.count))))
 
-//generate_field_line([-190, 500], 0)
-console.log(
-`Finished all lines. 
-    total_vertices=${total_vertices.toExponential()}, 
-    total_iterations=${total_iterations.toExponential()}`)
+//queue_push(create_line, [[-110, -1], 0])
+//queue_push(create_line, [[-99, -10], 0])
+//queue_push(create_line, [[-190, 500], 0])
+
+//TODO: this is broken right now
+Promise.all(promises).then(values => {
+    const avg_time_per_iteration_ns = 
+        (total_time_ms * 10e6 / iterations).toExponential()
+
+    console.log(
+        `Finished all lines. \n` + 
+        `   total_vertices=${total_vertices.toExponential()}, \n` +
+        `   total_iterations=${total_iterations.toExponential()} \n` +
+        `   average time / iteration = ${avg_time_per_iteration_ns} ns \n`
+    ) 
+})
 
 animate()
 
