@@ -75,7 +75,7 @@ const N_SIG_FIGS = 6
 
 const nabla = 10
 const min_resolution = 3
-const max_error_area = 0.125
+const max_error_area = 0.25
 const min_average_resolution = 100
 const iterations = 6e7
 const MAX_VERTICES_PER_LINE = Math.floor(Math.log2(iterations) * 25 / max_error_area)

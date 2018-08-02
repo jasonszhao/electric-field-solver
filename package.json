@@ -1,6 +1,7 @@
 {
   "name": "electric-field-solver",
   "version": "1.0.0",
+  "repository": "https://github.com/jasonszhao/electric-field-solver",
   "description": "",
   "main": "field-solver.html",
   "scripts": {

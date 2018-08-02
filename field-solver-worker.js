@@ -86,7 +86,7 @@ function generate_field_line_vertices(starting_point, g_0) {
         // actual data on this
 		if(i - geometry_testing_start_i > min_resolution) {
 
-            geometry_testing_error_area =+ triangle_area(
+            geometry_testing_error_area += triangle_area(
                 geometry_testing_start_vertex,
                 geometry_testing_prev_vertex,
                 geometry_testing_current_vertex)
@@ -97,6 +97,7 @@ function generate_field_line_vertices(starting_point, g_0) {
 
                 geometry_testing_start_vertex.set(geometry_testing_prev_vertex, 0)
                 geometry_testing_start_i = i - 1
+                geometry_testing_error_area = 0
 
                 //console.log(`pushed (${Math.floor(i/iterations * 100)}%): `, 
                     //r[0], g * 100, r[1], `field = ${field}`, `mag_field = ${mag_field}`)

@@ -237,7 +237,7 @@ function create_line(worker, starting_point, g_0) {
 
 //**************
 const starting_points = [] // Array([r[0], r[1], <-1 or 1>])
-const n = 24
+const n = 192
 const distance_from_charge = 5
 const centers = charges.filter(s => s[2] > 0)
 
