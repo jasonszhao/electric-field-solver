@@ -4,11 +4,11 @@ scene.background = new THREE.Color( 0xdddddd );
 let width = window.innerWidth
 let height = window.innerHeight
 const camera = new THREE.OrthographicCamera(
-	width / - 2, 
-	width / 2, 
-	height / 2,
+    width / - 2, 
+    width / 2, 
+    height / 2,
     height / - 2, 
-	-1200, 
+    -1200, 
     100000 
 )
 camera.position.y = 100
@@ -60,7 +60,7 @@ function animate() {
     controls.update();
     renderer.render(scene, camera)
 
-	window.requestAnimationFrame(animate)
+    window.requestAnimationFrame(animate)
 }
 
 
@@ -68,12 +68,12 @@ function animate() {
 //-----------
 
 charges.forEach(c => {
-	const geometry = new THREE.CylinderBufferGeometry( 1, 1, 800, 32 );
-	const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
-	const cylinder = new THREE.Mesh( geometry, material );
-	cylinder.position.x = c[0]
-	cylinder.position.z = c[1]
-	scene.add( cylinder );
+    const geometry = new THREE.CylinderBufferGeometry( 1, 1, 800, 32 );
+    const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
+    const cylinder = new THREE.Mesh( geometry, material );
+    cylinder.position.x = c[0]
+    cylinder.position.z = c[1]
+    scene.add( cylinder );
 })
 
 
@@ -110,11 +110,11 @@ charges.forEach(c => {
  *  we have no idea where to start and the goal) or objectively, using an error 
  *  metric: 
  * 
- *		DONE(!): explore using area as an error metric. Find area of a 3D-"polygon" 
- *    		by dividing the polygon into triangles in space and adding up the 
+ *      DONE(!): explore using area as an error metric. Find area of a 3D-"polygon" 
+ *          by dividing the polygon into triangles in space and adding up the 
  *          areas. 
  *      TODO: explore Lagrange error / remainder. The Lagrange error is an 
- *        	integral. See how this relates to my area. 
+ *          integral. See how this relates to my area. 
  */
 
 const geometries = []
@@ -278,7 +278,6 @@ const get_vertices_export = () =>
 //queue_push(create_line, [[-99, -10], 0])
 //queue_push(create_line, [[-190, 500], 0])
 
-//TODO: this is broken right now
 Promise.all(promises).then(values => {
     const avg_time_per_iteration_ns = 
         (total_time_ms * 10e6 / iterations).toExponential()

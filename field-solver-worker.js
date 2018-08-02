@@ -17,14 +17,14 @@ function generate_field_line_vertices(starting_point, g_0) {
 
     const start_time = performance.now()
     
-	const vertices = new Float32Array(3 * MAX_VERTICES_PER_LINE)
+    const vertices = new Float32Array(3 * MAX_VERTICES_PER_LINE)
 
     let n_vertices = 0
 
-	const r = starting_point.slice(0, 2)
-	let g = g_0
+    const r = starting_point.slice(0, 2)
+    let g = g_0
 
-	const delta_r = Float32Array.of(0,0)
+    const delta_r = Float32Array.of(0,0)
 
     vertices[0] = r[0]
     vertices[1] = g
@@ -32,9 +32,9 @@ function generate_field_line_vertices(starting_point, g_0) {
     n_vertices++
 
 
-	let delta_pos_prev_prev = Float32Array.of(-1,-1,-1)
-	let delta_pos_prev = Float32Array.of(1,1,1)
-	let tmp
+    let delta_pos_prev_prev = Float32Array.of(-1,-1,-1)
+    let delta_pos_prev = Float32Array.of(1,1,1)
+    let tmp
 
     let geometry_testing_start_i = 0
     let geometry_testing_start_vertex = 
@@ -45,37 +45,37 @@ function generate_field_line_vertices(starting_point, g_0) {
     let geometry_testing_error_area = 0
 
 
-	let i = 0
-	for (; i<iterations; i++) {
-		const field = find_field(r)
+    let i = 0
+    for (; i<iterations; i++) {
+        const field = find_field(r)
 
-		const mag_field = small_fast_len2(field)
-		if(mag_field > 3) break;
+        const mag_field = small_fast_len2(field)
+        if(mag_field > 3) break;
 
-		const mag_second_difference = vec3.distance(delta_pos_prev, delta_pos_prev_prev) || 1.0
-		const mag_delta_pos_prev = vec3.length(delta_pos_prev)
+        const mag_second_difference = vec3.distance(delta_pos_prev, delta_pos_prev_prev) || 1.0
+        const mag_delta_pos_prev = vec3.length(delta_pos_prev)
 
-		const factor = Math.pow(mag_delta_pos_prev / mag_second_difference, 1/2)
+        const factor = Math.pow(mag_delta_pos_prev / mag_second_difference, 1/2)
 
-		vec2.scale
-			( delta_r
-			, field, -nabla * factor) 
-		vec2.add
-			( r
-			, r, delta_r)
+        vec2.scale
+            ( delta_r
+            , field, -nabla * factor) 
+        vec2.add
+            ( r
+            , r, delta_r)
 
-		const delta_g = vec2.dot(field, delta_r)
-		g += delta_g
-		
-		
-		tmp = delta_pos_prev
-		delta_pos_prev = delta_pos_prev_prev // overridden on the next step
-		delta_pos_prev_prev = tmp
+        const delta_g = vec2.dot(field, delta_r)
+        g += delta_g
+        
+        
+        tmp = delta_pos_prev
+        delta_pos_prev = delta_pos_prev_prev // overridden on the next step
+        delta_pos_prev_prev = tmp
 
-		
-		delta_pos_prev[0] = delta_r[0]
-		delta_pos_prev[1] = delta_r[1]
-		delta_pos_prev[2] = delta_g
+        
+        delta_pos_prev[0] = delta_r[0]
+        delta_pos_prev[1] = delta_r[1]
+        delta_pos_prev[2] = delta_g
 
 
         geometry_testing_current_vertex[0] = r[0]
@@ -84,7 +84,7 @@ function generate_field_line_vertices(starting_point, g_0) {
 
         // aha! this can be done separately from the top! Need to get some
         // actual data on this
-		if(i - geometry_testing_start_i > min_resolution) {
+        if(i - geometry_testing_start_i > min_resolution) {
 
             geometry_testing_error_area += triangle_area(
                 geometry_testing_start_vertex,
@@ -102,17 +102,17 @@ function generate_field_line_vertices(starting_point, g_0) {
                 //console.log(`pushed (${Math.floor(i/iterations * 100)}%): `, 
                     //r[0], g * 100, r[1], `field = ${field}`, `mag_field = ${mag_field}`)
             }
-			
-		}
+            
+        }
         geometry_testing_prev_vertex.set(geometry_testing_current_vertex)
-	}
+    }
 
 
     const end_time = performance.now()
     const time_ms = end_time - start_time
     last_run_time_ms = time_ms
 
-	console.log(
+    console.log(
         `Finished line w/ `
       + `${l_pad(Math.log10(iterations) + 1, i)} iter (rtm=${(i/iterations).toExponential(N_SIG_FIGS - 1)}), `       
       + `${n_vertices} vert, ` 

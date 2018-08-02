@@ -3,25 +3,25 @@ const l_pad = (length, string) =>
     ('                   ' + string).slice(-parseInt(length, 10))
 
 const small_fast_len2 = a => 
-	Math.abs(a[0]) + Math.abs(a[1])
+    Math.abs(a[0]) + Math.abs(a[1])
 
 const RelDif = (a, b) => {
-	let c = Math.abs(a);
-	let d = Math.abs(b);
+    let c = Math.abs(a);
+    let d = Math.abs(b);
 
-	d = Math.max(c, d);
+    d = Math.max(c, d);
 
-	return d == 0.0 ? 0.0 : Math.abs(a - b) / d;
+    return d == 0.0 ? 0.0 : Math.abs(a - b) / d;
 }
 
 const float_equal = (a, b) => RelDif(a, b) <= 0.01
 
 const charges = [
-	[-100, 0, -10],
-	 [100, 0, -10],
-	 [0, -100, +10],
-	 [0, 100, +10]
-	]
+    [-100, 0, -10],
+     [100, 0, -10],
+     [0, -100, +10],
+     [0, 100, +10]
+    ]
 
 
 const direction = vec2.create()
@@ -29,20 +29,20 @@ const field_i = [0,0]
 const field_output = [0,0]
 
 const find_field = position => {
-	field_output[0] = 0
-	field_output[1] = 0
+    field_output[0] = 0
+    field_output[1] = 0
 
-	for(let i = 0; i<charges.length; i++) {
-		vec2.sub(direction, position, charges[i])
-		
-		const distance = vec2.len(direction)
-		
-		vec2.scale(field_i, direction, -charges[i][2] * Math.pow(distance, -3))
-		
-		vec2.add(field_output, field_output, field_i)
-	}
+    for(let i = 0; i<charges.length; i++) {
+        vec2.sub(direction, position, charges[i])
+        
+        const distance = vec2.len(direction)
+        
+        vec2.scale(field_i, direction, -charges[i][2] * Math.pow(distance, -3))
+        
+        vec2.add(field_output, field_output, field_i)
+    }
 
-	return field_output
+    return field_output
 }
 
 const _AB_triangle_area = new Float32Array(3)

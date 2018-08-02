@@ -1,3 +1,8 @@
+// compile using emcc (or gcc/clang for quick testing iterations)
+//
+// emcc field-solver-wasm.c -o field-solver-wasm.html
+// emcc field-solver-wasm.c -o field-solver-wasm.js
+
 #include <assert.h>
 #include <emscripten/emscripten.h>
 #include <stdio.h>
@@ -194,14 +199,14 @@ vec2 find_field(vec2 *position) {
     vec2 field_i = {0,0};
     vec2 field_output = {0,0};
 
-	for(int i = 0; i<charges_n; i++) {
-		vec2_difference(&direction, position, (vec2*) &charges[i]);
-		float distance = vec2_len(&direction);
-		vec2_scale(&field_i, &direction, -charges[i].z * pow(distance, -3));
-		vec2_add(&field_output, &field_output, &field_i);
-	}
+    for(int i = 0; i<charges_n; i++) {
+        vec2_difference(&direction, position, (vec2*) &charges[i]);
+        float distance = vec2_len(&direction);
+        vec2_scale(&field_i, &direction, -charges[i].z * pow(distance, -3));
+        vec2_add(&field_output, &field_output, &field_i);
+    }
 
-	return field_output;
+    return field_output;
 }
 
 /**************************
@@ -251,8 +256,8 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
     vertices[0] = (vec3) {r_x0, g_0, r_y0};
     n_vertices++;
     
-	vec3 delta_pos_prev_prev = {-1,-1,-1};
-	vec3 delta_pos_prev = {1,1,1};
+    vec3 delta_pos_prev_prev = {-1,-1,-1};
+    vec3 delta_pos_prev = {1,1,1};
 
     int geometry_testing_start_i = 0;
     vec3 geometry_testing_start_vertex = {r_x0, g_0 * 100, r_y0};
@@ -262,37 +267,37 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
     float geometry_testing_error_area = 0;
 
 
-	int i = 0;
-	for (; i<iterations; i++) {
-		vec2 field = find_field(&r);
+    int i = 0;
+    for (; i<iterations; i++) {
+        vec2 field = find_field(&r);
 
-		/*vec2 mag_field = small_fast_len2(field);*/
+        /*vec2 mag_field = small_fast_len2(field);*/
         float mag_field = vec2_len(&field);
-		if(mag_field > 3) break;
+        if(mag_field > 3) break;
 
-		float mag_second_difference = 
+        float mag_second_difference = 
             vec3_distance(&delta_pos_prev, &delta_pos_prev_prev) || 1.0;
-		float mag_delta_pos_prev = vec3_len(&delta_pos_prev);
+        float mag_delta_pos_prev = vec3_len(&delta_pos_prev);
 
-		float factor = pow(mag_delta_pos_prev / mag_second_difference, 1/2);
+        float factor = pow(mag_delta_pos_prev / mag_second_difference, 1/2);
 
-		vec2_scale
-			( &delta_r
-			, &field, -nabla * factor) ;
-		vec2_add
-			( &r
-			, &r, &delta_r);
+        vec2_scale
+            ( &delta_r
+            , &field, -nabla * factor) ;
+        vec2_add
+            ( &r
+            , &r, &delta_r);
 
-		float delta_g = vec2_dot(&field, &delta_r);
-		g += delta_g;
-		
-		
-		vec3_copy(&delta_pos_prev_prev, &delta_pos_prev);
+        float delta_g = vec2_dot(&field, &delta_r);
+        g += delta_g;
+        
+        
+        vec3_copy(&delta_pos_prev_prev, &delta_pos_prev);
 
-		
-		delta_pos_prev.x = delta_r.x;
-		delta_pos_prev.y = delta_r.y;
-		delta_pos_prev.z = delta_g;
+        
+        delta_pos_prev.x = delta_r.x;
+        delta_pos_prev.y = delta_r.y;
+        delta_pos_prev.z = delta_g;
 
 
         geometry_testing_current_vertex.x = r.x;
@@ -301,7 +306,7 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
 
         // aha! this can be done separately from the top! Need to get some
         // actual data on this
-		if(i - geometry_testing_start_i > min_resolution) {
+        if(i - geometry_testing_start_i > min_resolution) {
 
             geometry_testing_error_area += triangle_area(
                 &geometry_testing_start_vertex,
@@ -325,10 +330,10 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
                     mag_field
                 );
             }
-			
-		}
+            
+        }
         vec3_copy(&geometry_testing_prev_vertex, &geometry_testing_current_vertex);
-	}
+    }
 
 
     float end_time = (float) clock() / CLOCKS_PER_SEC * 1000;
