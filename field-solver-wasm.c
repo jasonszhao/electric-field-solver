@@ -41,7 +41,7 @@ const float MAX_VERTICES_PER_LINE = 500;
  *           with arrays of vec3's. 
  *
  *      JavaScript arrays (we're actually using `TypedArray`s, but the reasoning 
- *      still applies) gives us more abstraction / protection. They're obviously
+ *      still applies) give us more abstraction / protection. They're obviously
  *      friendlier than C arrays. Also, JS can access WASM's memory buffer as 
  *      a TypedArray for free, so any vec3 output to JS will have to be 
  *      converted to arrays on the heap. Then our functions can output pointers 
@@ -185,6 +185,8 @@ float triangle_area(vec3 *a, vec3 *b, vec3 *c) {
  * Electric stuff
  ********************/
 
+/*inline float small_fast_len2(vec3 *u) { return fabs(u->x) + fabs(u->y); }*/
+
 // TODO: get this information from JS
 const int charges_n = 4;
 vec3 charges[4] = {
@@ -207,38 +209,6 @@ vec2 find_field(vec2 *position) {
     }
 
     return field_output;
-}
-
-/**************************
- * just some testing stuff
- **************************/
-
-vec3 f(float t) {
-    return (vec3) { t, t*t*t, t*t };
-}
-
-float area(int n, float start, float end) {
-
-    assert(n > 2);
-
-    vec3 points[n];
-
-    for(int i = 0; i<n; i++) {
-        float t = start + (end - start) * i / n;
-        points[i] = f(t);
-
-        /*printf("f(%f) = [%f, %f, %f]\n", t, points[i].x, points[i].y, points[i].z);*/
-    }
-    float area = 0;
-    for(int i = 0; i<n; i++) {
-        vec3 *a = points + i;
-        vec3 *b = points + ((i + 1) % n);
-        vec3 *c = points + ((i + 2) % n);
-
-        area += triangle_area(a, b, c);
-    }
-
-    return area;
 }
 
 
@@ -354,19 +324,42 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
         {.n_vertices = n_vertices, .result = vertices};
 }
 
-/*************************
- * Begin electric stuff
- *************************/
-inline float small_fast_len2(vec3 *u) { return fabs(u->x) + fabs(u->y); }
-
-/*vec3 *find_field(vec3 *out, vec3 *u);*/
-
-/*void generate_field_line(vec3* starting_point);*/
 
 /*************************
  * End electric stuff
  *************************/
 
+/*********************************
+ * Extremely Incomplete Test code
+ *********************************/
+
+vec3 f(float t) {
+    return (vec3) { t, t*t*t, t*t };
+}
+
+float area(int n, float start, float end) {
+
+    assert(n > 2);
+
+    vec3 points[n];
+
+    for(int i = 0; i<n; i++) {
+        float t = start + (end - start) * i / n;
+        points[i] = f(t);
+
+        /*printf("f(%f) = [%f, %f, %f]\n", t, points[i].x, points[i].y, points[i].z);*/
+    }
+    float area = 0;
+    for(int i = 0; i<n; i++) {
+        vec3 *a = points + i;
+        vec3 *b = points + ((i + 1) % n);
+        vec3 *c = points + ((i + 2) % n);
+
+        area += triangle_area(a, b, c);
+    }
+
+    return area;
+}
 
 int main () {
     float start = 0;
