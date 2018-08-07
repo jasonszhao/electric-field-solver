@@ -1,3 +1,7 @@
+//const db = new PouchDB("benchmarks")
+//const remoteCouch = 'http://127.0.0.1:5984/benchmarks';
+window.global_start_time = performance.now()
+
 const scene = new THREE.Scene()
 scene.background = new THREE.Color( 0xdddddd );
 
@@ -79,12 +83,12 @@ charges.forEach(c => {
 
 //const error_area = (points) => {
     //let area = 0;
-    //const n = points.length
+    //const lines_per_charge = points.length
 
-    //for(let i = 0; i<n; i++) {
+    //for(let i = 0; i<lines_per_charge; i++) {
         //a = points[i];
-        //b = points[(i + 1) % n];
-        //c = points[(i + 2) % n];
+        //b = points[(i + 1) % lines_per_charge];
+        //c = points[(i + 2) % lines_per_charge];
 
         //area += triangle_area(a, b, c);
     //}
@@ -126,23 +130,40 @@ let total_time_ms = 0
 const worker_pool = []
 
 
-let cores = window.navigator.hardwareConcurrency
-if(!cores) {
-    // this makes me angry. it's not worth the effort
-    
-    const w = window.screen.width * window.devicePixelRatio
-    const h = window.screen.height * window.devicePixelRatio
-    
-    if (w === 2880 && h === 1800) { cores = 8 } // MacBook Pro 15" retina
-    else { cores = 4 }
+function getCoreCount() {
+
+  let cores = window.navigator.hardwareConcurrency
+  if(!cores) {
+      // this makes me angry. it's not worth the effort
+      
+      const w = window.screen.width * window.devicePixelRatio
+      const h = window.screen.height * window.devicePixelRatio
+      
+      if (w === 2880 && h === 1800) { cores = 8 } // MacBook Pro 15" retina
+      else { cores = 4 }
+  }
+
+  return cores
 }
 
-for(let i = 1; i < Math.max(2, cores); i++) {
-    worker_pool.push({
-        worker: new Worker('field-solver-worker.js'),
-        is_busy: false
-    })
-}
+//const n_workers = Math.max(1, getCoreCount() - 1)
+const n_workers = 4
+
+//for(let i = 1; i < n_workers; i++) {
+    //worker_pool.push(new WebWorker())
+//}
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
+worker_pool.push(new HTTPWorker())
 
 
 const queue = []
@@ -188,7 +209,7 @@ function queue_push(f, args) {
 }
 
 const run_f = (f, args) => worker_info => {
-    return f.apply(null, [worker_info.worker, ...args])
+    return f.apply(null, [worker_info, ...args])
     
         //the show must go on no matter what.
         .catch(e => console.error(e))
@@ -205,39 +226,62 @@ const run_f = (f, args) => worker_info => {
         })
 }
 
-function create_line(worker, starting_point, g_0) {
-    worker.postMessage([starting_point, g_0])
+function WebWorker() {
+    this._internal = new Worker('field-solver-worker.js')
+    this.is_busy = false
+}
+WebWorker.prototype.run = function(args) {
+    this._internal.postMessage(...args)
 
     return new Promise((resolve, reject) => {
-        worker.onmessage = function(event) {
-            const vertices = event.data.result
-            const n_vertices = event.data.n_vertices
-
-            total_vertices += n_vertices
-            total_iterations += event.data.iterations
-            total_time_ms += event.data.time_ms
-
-            const material = new THREE.LineBasicMaterial({color: 0x0000ff})
-            const geometry = new THREE.BufferGeometry()
-            geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) )
-            const line = new THREE.Line(geometry, material)
-            scene.add(line)
-
-            geometry.setDrawRange(0, n_vertices)
-
-            geometries.push(geometry)
-
-            resolve(vertices)
+        this._internal.onmessage = (event) => {
+            resolve(event.data)
         }
     })
+}
+function HTTPWorker() {
+    this._endpoint = location.hostname === "localhost"
+        ? "//" + location.hostname + ":9000/generate_field_line_vertices"
+        : "//" + location.host + "/.netlify/functions/generate_field_line_vertices"
 
+    this.is_busy = false
+}
+HTTPWorker.prototype.run = function(args) {
+    return axios.get(this._endpoint, {params: args}).then(res => res.data)
+}
+
+async function create_line(worker, r_0, r_1, g_0) {
+    const data = await worker.run({r_0, r_1, g_0})
+            
+    const vertices = data.vertices instanceof Float32Array 
+        ? vertices
+        : Float32Array.from(data.vertices)
+    const n_vertices = data.n_vertices
+
+    total_vertices += n_vertices
+    total_iterations += data.iterations
+    total_time_ms += data.time_ms
+
+    const material = new THREE.LineBasicMaterial({color: 0x0000ff})
+    const geometry = new THREE.BufferGeometry()
+
+    geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) )
+    const line = new THREE.Line(geometry, material)
+    scene.add(line)
+
+    geometry.setDrawRange(0, n_vertices)
+
+    geometries.push(geometry)
+
+    return vertices
 }
 
 
 
+const promises = []
 //**************
 const starting_points = [] // Array([r[0], r[1], <-1 or 1>])
-const n = 192
+const lines_per_charge = 36
 const distance_from_charge = 5
 const centers = charges.filter(s => s[2] > 0)
 
@@ -247,10 +291,8 @@ const centers = charges.filter(s => s[2] > 0)
 const starting_angle = 0
 const ending_angle = Math.PI * 2
 
-for(let i=0; i<n; i++) {
-    const angle = starting_angle + i / n * (ending_angle - starting_angle)
-
-    if(angle % Math.PI < Number.EPSILON) continue
+for(let i=0; i<lines_per_charge; i++) {
+    const angle = starting_angle + i / lines_per_charge * (ending_angle - starting_angle)
 
     centers.forEach(center => {
         starting_points.push([
@@ -261,11 +303,14 @@ for(let i=0; i<n; i++) {
     })
 }
 
-const promises = []
 
 starting_points.forEach(starting_point => {
-    promises.push(queue_push( create_line, [starting_point, 0]))
+    promises.push(queue_push( create_line, [starting_point[0], starting_point[1], 0]))
 })
+
+window.onbeforeunload = function() {
+  if(!entered) return "data not entered yet!"
+}
 
 /************/
 
@@ -274,11 +319,37 @@ const get_vertices_export = () =>
         geometries.map(g => Array.from(
             g.attributes.position.array.slice(0, g.drawRange.count))))
 
-//queue_push(create_line, [[-110, -1], 0])
-//queue_push(create_line, [[-99, -10], 0])
-//queue_push(create_line, [[-190, 500], 0])
+//queue_push(create_line, [-110, -1, 0])
+//queue_push(create_line, [-99, -10, 0])
+//queue_push(create_line, [-100, 5, 0])
+//queue_push(create_line, [-100, -5, 0])
 
+let entered = false
+function make_log_entry() {
+    console.log("global_total_time: " + global_total_time)
+    console.log({
+        wasm: targetWasm,
+        n_vertices: total_vertices,
+        n_iterations: total_iterations,
+        workers: n_workers,
+        charges: charges,
+        total_time: global_total_time,
+        lines_per_charge: lines_per_charge,
+        user_agent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+    })
+
+    //db.replicate.to(remoteCouch)
+    entered = true
+}
+let global_end_time 
+let global_total_time
 Promise.all(promises).then(values => {
+    global_end_time = performance.now()
+    global_total_time = global_end_time - global_start_time
+  
+    make_log_entry() 
+
     const avg_time_per_iteration_ns = 
         (total_time_ms * 10e6 / iterations).toExponential()
 
@@ -289,6 +360,10 @@ Promise.all(promises).then(values => {
         `   average time / iteration = ${avg_time_per_iteration_ns} ns \n`
     ) 
 })
+
+
+//console.log('wasm on')
+//queue_push(create_line, [-5, 101, 0])
 
 animate()
 

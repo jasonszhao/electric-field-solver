@@ -4,33 +4,21 @@
 // emcc field-solver-wasm.c -o field-solver-wasm.js
 
 #include <assert.h>
-#include <emscripten/emscripten.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tgmath.h>
 #include <time.h>
 
-const int N_SIG_FIGS = 6;
-
-const float nabla = 10;
-const int min_resolution = 3;
-const float max_error_area = 0.25;
-const int min_average_resolution = 100;
-const int iterations = 6e7;
-const float MAX_VERTICES_PER_LINE = 500;
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 /**
  *  Notes about types:
  *
- *   1) `double` and `float` have no performance difference running
- *      natively on my 64-bit machine. However, we're using single-precision
- *      floats because 24-bits of precision (~7.2 digits in decimals) is more 
- *      than enough for our purposes. I do need to take into account:
- *
- *        a) CPU performance on other architectures, including WebAssembly
- *        b) memory. I plan to pass float arrays down networks and between 
- *           WASM <-> JS. The whole app is based on crunching large sets of
- *           floating-point numbers. Memory usage can almost be halved. Why not?
+ *   1) Based on my tests, single-precision is not enough for internal 
+ *      calculations. I'm exporting float arrays because Three.JS doesn't accept 
+ *      Float64Array's, and it also saves a lot of bandwidth.
  *
  *   2) I'm using a struct to store 3-vectors because they're more intuitive to 
  *      use than arrays in C. 
@@ -41,61 +29,105 @@ const float MAX_VERTICES_PER_LINE = 500;
  *           with arrays of vec3's. 
  *
  *      JavaScript arrays (we're actually using `TypedArray`s, but the reasoning 
- *      still applies) give us more abstraction / protection. They're obviously
- *      friendlier than C arrays. Also, JS can access WASM's memory buffer as 
- *      a TypedArray for free, so any vec3 output to JS will have to be 
- *      converted to arrays on the heap. Then our functions can output pointers 
- *      to these arrays. 
+ *      still applies) give us more abstraction and protection, making them
+ *      friendlier than C arrays. JS can access WASM's memory buffer as a
+ *      TypedArray for free, so any vec3 output to JS will have to be converted
+ *      to arrays on the heap. Then our functions can output pointers to these
+ *      arrays. 
+ *
+ *      Since float_vec3 has a memory layout identical to float[3], I can just 
+ *      treat one like the other using casts. That way, I can minimize copying/
+ *      converting.
  *
  **/
 
 
 typedef struct {
-    float x;
-    float y;
-    float z;
+    double x;
+    double y;
+    double z;
 } vec3;
 
 typedef struct {
     float x;
     float y;
+    float z;
+} float_vec3;
+
+typedef struct {
+    double x;
+    double y;
 } vec2;
 
 typedef struct {
     int n_vertices;
-    vec3 *result;
+    float_vec3 *result;
 } generate_field_line_t;
 
-generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0);
+/*****************
+ * Debugging
+ *****************/
+void print_vec3(vec3 *u) {
+  printf("{x=%f, y=%f, z=%f}\n", u->x, u->y, u->z);
+}
+void print_vec3_array(int n, vec3 *arr) {
+  for(int i = 0; i < n; i++) {
+    print_vec3(arr + i);
+  }
+}
+
+/*************************
+ * Configuration
+ *************************/
+int N_SIG_FIGS = 6;
+/*
+double nabla = 10;
+int min_resolution = 3;
+double max_error_area = 0.25;
+int min_average_resolution = 100;
+long iterations = (long) 6e5;
+double MAX_VERTICES_PER_LINE= 5000;
+*/
+
+double nabla;
+int min_resolution;
+double max_error_area;
+int min_average_resolution;
+long iterations;
+double MAX_VERTICES_PER_LINE;
+
+/*intcharges_n 2*/
+/*vec3 charges[2] = {*/
+        /*{-100, 0, +10},*/
+        /*{100, 0, +10}*/
+        /*{-100, 0, -10},*/
+        /*{100, 0, -10}*/
+        
+int n_charges;
+vec3 *charges = NULL;
 /***********************
  * JS Interfacing 
  ***********************/
-float *vec3_to_array(vec3 *u) {
-    float *result = malloc(3 * sizeof(float));
-    assert(result != NULL);
+void set_nabla(double a) {nabla = a;}
+void set_max_error_area(double a) {max_error_area = a;}
+void set_min_average_resolution (int a) {min_average_resolution = a;}
+void set_iterations (long a) {iterations = a;}
+void set_MAX_VERTICES_PER_LINE(double a) { MAX_VERTICES_PER_LINE = a; }
 
-    result[0] = u->x;
-    result[1] = u->y;
-    result[2] = u->z;
-    return result;
-}
-//takes an array of vec3 and allocates a contiguous array (Float32Array in JS)
-float *array_of_vec3_to_array(int count, vec3 *list) {
-    float *result = malloc(3 * count * sizeof(float));
-    assert(result != NULL);
+void set_charges (int new_n_charges, float *new_charges) {
+  free(charges);
+  n_charges = new_n_charges;
+  charges = (vec3 *) new_charges;
 
-    for(int i = 0; i < count; i++) {
-        result[3*i    ] = list[count].x;
-        result[3*i + 1] = list[count].y;
-        result[3*i + 2] = list[count].z;
-    }
-    return result;
+  //printf("setting charges!\n");
+  //print_vec3_array(n_charges, charges);
 }
 
-EMSCRIPTEN_KEEPALIVE
-float *exported_generate_field_line(float r_x0, float r_y0, float g_0) {
-    generate_field_line_t internal = generate_field_line(r_x0, r_y0, g_0);
-    return array_of_vec3_to_array(internal.n_vertices, internal.result);
+float_vec3 *to_float_vec3(float_vec3 *out, vec3 *in) {
+  out->x = in->x;
+  out->y = in->y;
+  out->z = in->z;
+  return out;
 }
 /***********************
  * END JS Interfacing
@@ -137,39 +169,39 @@ vec2 *vec2_difference (vec2 *out, vec2 *a, vec2 *b) {
     out->y = a->y - b->y;
     return out;
 }
-float vec2_dot (vec2 *a, vec2 *b) {
+double vec2_dot (vec2 *a, vec2 *b) {
     return a->x * b->x + a->y * b->y;
 }
-float vec3_distance (vec3 *a, vec3 *b) {
+double vec3_distance (vec3 *a, vec3 *b) {
     return sqrt(
         pow(b->x - a->x, 2) + 
         pow(b->y - a->y, 2) + 
         pow(b->z - a->z, 2) );
 }
-float vec3_len (vec3 *a) {
+double vec3_len (vec3 *a) {
     return sqrt(
         a->x * a->x +
         a->y * a->y +
         a->z * a->z);
 }
-float vec2_len (vec2 *a) {
+double vec2_len (vec2 *a) {
     return sqrt(
         a->x * a->x +
         a->y * a->y );
 }
-vec2 *vec2_scale(vec2 *out, vec2 *u, float k) {
+vec2 *vec2_scale(vec2 *out, vec2 *u, double k) {
     out->x = u->x * k;
     out->y = u->y * k;
     return out;
 }
-vec3 *vec3_scale(vec3 *out, vec3 *u, float k) {
+vec3 *vec3_scale(vec3 *out, vec3 *u, double k) {
     out->x = u->x * k;
     out->y = u->y * k;
     out->z = u->z * k;
     return out;
 }
 
-float triangle_area(vec3 *a, vec3 *b, vec3 *c) {
+double triangle_area(vec3 *a, vec3 *b, vec3 *c) {
     // area = 1/2 * AB x AC
     vec3 AB;
     vec3 AC;
@@ -185,25 +217,18 @@ float triangle_area(vec3 *a, vec3 *b, vec3 *c) {
  * Electric stuff
  ********************/
 
-/*inline float small_fast_len2(vec3 *u) { return fabs(u->x) + fabs(u->y); }*/
+inline double small_fast_len2(vec3 *u) { return fabs(u->x) + fabs(u->y); }
 
-// TODO: get this information from JS
-const int charges_n = 4;
-vec3 charges[4] = {
-    {-100, 0, -10},
-    {100, 0, -10},
-    {0, -100, +10},
-    {0, 100, +10}
-};
 
 vec2 find_field(vec2 *position) {
+    assert(n_charges > 0);
     vec2 direction;
     vec2 field_i = {0,0};
     vec2 field_output = {0,0};
 
-    for(int i = 0; i<charges_n; i++) {
+    for(int i = 0; i<n_charges; i++) {
         vec2_difference(&direction, position, (vec2*) &charges[i]);
-        float distance = vec2_len(&direction);
+        double distance = vec2_len(&direction);
         vec2_scale(&field_i, &direction, -charges[i].z * pow(distance, -3));
         vec2_add(&field_output, &field_output, &field_i);
     }
@@ -212,18 +237,19 @@ vec2 find_field(vec2 *position) {
 }
 
 
-generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
-    float start_time = (float) clock() / CLOCKS_PER_SEC * 1000;
+float *generate_field_line(double r_x0, double r_y0, double g_0) {
+    double start_time = (double) clock() / CLOCKS_PER_SEC * 1000;
 
-    vec3 *vertices = malloc(MAX_VERTICES_PER_LINE * sizeof(vec3));
-    
+    float *result = malloc(MAX_VERTICES_PER_LINE * 3 * sizeof(float));
+    float_vec3 *vertices = (float_vec3*)result + 1;
+
     int n_vertices = 0;
 
     vec2 r = {r_x0, r_y0};
-    float g = g_0;
+    double g = g_0;
     vec2 delta_r = {0,0};
 
-    vertices[0] = (vec3) {r_x0, g_0, r_y0};
+    vertices[0] = (float_vec3) {r_x0, g_0, r_y0};
     n_vertices++;
     
     vec3 delta_pos_prev_prev = {-1,-1,-1};
@@ -234,7 +260,7 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
     vec3 geometry_testing_prev_vertex;
     vec3 geometry_testing_current_vertex;
 
-    float geometry_testing_error_area = 0;
+    double geometry_testing_error_area = 0;
 
 
     int i = 0;
@@ -242,14 +268,19 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
         vec2 field = find_field(&r);
 
         /*vec2 mag_field = small_fast_len2(field);*/
-        float mag_field = vec2_len(&field);
-        if(mag_field > 3) break;
+        double mag_field = vec2_len(&field);
+        if(mag_field > 0.5) {
+          if(i > geometry_testing_start_i) {
+            to_float_vec3(&vertices[n_vertices++], &geometry_testing_current_vertex);
+          }
+          break;
+        }
 
-        float mag_second_difference = 
+        double mag_second_difference = 
             vec3_distance(&delta_pos_prev, &delta_pos_prev_prev) || 1.0;
-        float mag_delta_pos_prev = vec3_len(&delta_pos_prev);
+        double mag_delta_pos_prev = vec3_len(&delta_pos_prev);
 
-        float factor = pow(mag_delta_pos_prev / mag_second_difference, 1/2);
+        double factor = pow(mag_delta_pos_prev / mag_second_difference, 1/2);
 
         vec2_scale
             ( &delta_r
@@ -258,7 +289,7 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
             ( &r
             , &r, &delta_r);
 
-        float delta_g = vec2_dot(&field, &delta_r);
+        double delta_g = vec2_dot(&field, &delta_r);
         g += delta_g;
         
         
@@ -284,44 +315,43 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
                 &geometry_testing_current_vertex);
 
             if(geometry_testing_error_area > max_error_area) {
-                vertices[n_vertices++] = geometry_testing_prev_vertex;
+                to_float_vec3(&vertices[n_vertices++], &geometry_testing_prev_vertex);
 
                 vec3_copy(&geometry_testing_start_vertex, &geometry_testing_prev_vertex);
                 geometry_testing_start_i = i - 1;
                 geometry_testing_error_area = 0;
 
-                printf("pushed: %i%%   %.2f %.2f %.2f  field = %.2f %.2f mag_field = %.2f\n",
-                    (int) (i/iterations * 100),
-                    r.x, 
-                    g * 100, 
-                    r.y,
-                    field.x, 
-                    field.y, 
-                    mag_field
-                );
+                
+                /*printf("pushed: %i%%  %6.2f %6.2f %7.2f  field = %7.4f %7.4f mag_field = %.4f\n",*/
+                       /*(int) (i/iterations * 100),*/
+                       /*geometry_testing_prev_vertex.x,*/
+                       /*geometry_testing_prev_vertex.y,*/
+                       /*geometry_testing_prev_vertex.z,*/
+                    /*field.x,*/
+                    /*field.y,*/
+                    /*mag_field*/
+                /*);*/
             }
-            
         }
         vec3_copy(&geometry_testing_prev_vertex, &geometry_testing_current_vertex);
     }
 
+    double end_time = (double) clock() / CLOCKS_PER_SEC * 1000;
+    double time_ms = end_time - start_time;
 
-    float end_time = (float) clock() / CLOCKS_PER_SEC * 1000;
-    float time_ms = end_time - start_time;
-    /*last_run_time_ms = time_ms*/
-
-    printf("Finished line w/ %9i iter (rtm=${%e}), ", i, (float) i/iterations);
-    printf("%i vert, ", n_vertices);
+    printf("c Finished line w/ %9i iter (rtm=${%e}), ", i, (double) i/iterations);
+    printf("%4i vert, ", n_vertices);
     printf("(rtm=%e), ", n_vertices / MAX_VERTICES_PER_LINE);
     printf("in %li ms (%e ns / vert).\n", 
             lround(time_ms), time_ms * 10e6 / n_vertices);
 
 
-    /*last_run_vertices = n_vertices;*/
-    /*last_run_iterations = i;*/
+    result[0] = n_vertices;
+    result[1] = i;
+    result[2] = time_ms;
 
-    return (generate_field_line_t) 
-        {.n_vertices = n_vertices, .result = vertices};
+    return realloc(result, 3 * sizeof(float) * (n_vertices + 1));
+
 }
 
 
@@ -333,23 +363,23 @@ generate_field_line_t generate_field_line(float r_x0, float r_y0, float g_0) {
  * Extremely Incomplete Test code
  *********************************/
 
-vec3 f(float t) {
+vec3 f(double t) {
     return (vec3) { t, t*t*t, t*t };
 }
 
-float area(int n, float start, float end) {
+double area(int n, double start, double end) {
 
     assert(n > 2);
 
     vec3 points[n];
 
     for(int i = 0; i<n; i++) {
-        float t = start + (end - start) * i / n;
+        double t = start + (end - start) * i / n;
         points[i] = f(t);
 
         /*printf("f(%f) = [%f, %f, %f]\n", t, points[i].x, points[i].y, points[i].z);*/
     }
-    float area = 0;
+    double area = 0;
     for(int i = 0; i<n; i++) {
         vec3 *a = points + i;
         vec3 *b = points + ((i + 1) % n);
@@ -360,24 +390,36 @@ float area(int n, float start, float end) {
 
     return area;
 }
+/*****************
+ * End Test Code
+ *****************/
 
 int main () {
-    float start = 0;
-    float end = 1;
-    int n = 100;
+    /*charges = malloc(4 * sizeof(vec3)); {*/
+      /*(vec3) {-100, 0, -10},*/
+      /*(vec3) {100, 0, -10},*/
+      /*(vec3) {0, -100, +10},*/
+      /*(vec3) {0, 100, +10}*/
+    /*};*/
+    /*double start = 0;*/
+    /*double end = 1;*/
+    /*int n = 100;*/
 
-    printf("using float. start=%f, end=%f, n=%i\n", start, end, n);
+    /*printf("using double. start=%f, end=%f, n=%i\n", start, end, n);*/
 
-    int iterations = 100000;
-    float starttime = (float) clock() / CLOCKS_PER_SEC;
+    /*int iterations = 100000;*/
+    /*double starttime = (double) clock() / CLOCKS_PER_SEC;*/
 
-    /*printf("area: %f\n", area(n, start, end));*/
-    for(int i = 0; i < iterations; i++) 
-        area(n, start, end);
+    /*[>printf("area: %f\n", area(n, start, end));<]*/
+    /*for(int i = 0; i < iterations; i++) */
+        /*area(n, start, end);*/
 
-    float endtime = (float) clock() / CLOCKS_PER_SEC;
+    /*double endtime = (double) clock() / CLOCKS_PER_SEC;*/
 
-    printf("time: %f µs\n", (endtime - starttime) * 1000000 / iterations);
+    /*printf("time: %f µs\n", (endtime - starttime) * 1000000 / iterations);*/
+
+    float *ptr = generate_field_line(-100, -5, 0);
+    free(ptr);
+    ptr = NULL;
 
 }
-
