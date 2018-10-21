@@ -1,8 +1,3 @@
-// compile using emcc (or gcc/clang for quick testing iterations)
-//
-// emcc field-solver-wasm.c -o field-solver-wasm.html
-// emcc field-solver-wasm.c -o field-solver-wasm.js
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,14 +75,6 @@ void print_vec3_array(int n, vec3 *arr) {
  * Configuration
  *************************/
 int N_SIG_FIGS = 6;
-/*
-double nabla = 10;
-int min_resolution = 3;
-double max_error_area = 0.25;
-int min_average_resolution = 100;
-long iterations = (long) 6e5;
-double MAX_VERTICES_PER_LINE= 5000;
-*/
 
 double nabla;
 int min_resolution;
@@ -96,14 +83,7 @@ int min_average_resolution;
 long iterations;
 double MAX_VERTICES_PER_LINE;
 
-/*intcharges_n 2*/
-/*vec3 charges[2] = {*/
-        /*{-100, 0, +10},*/
-        /*{100, 0, +10}*/
-        /*{-100, 0, -10},*/
-        /*{100, 0, -10}*/
-        
-int n_charges;
+int n_charges = 0;
 vec3 *charges = NULL;
 /***********************
  * JS Interfacing 
@@ -118,9 +98,6 @@ void set_charges (int new_n_charges, float *new_charges) {
   free(charges);
   n_charges = new_n_charges;
   charges = (vec3 *) new_charges;
-
-  //printf("setting charges!\n");
-  //print_vec3_array(n_charges, charges);
 }
 
 float_vec3 *to_float_vec3(float_vec3 *out, vec3 *in) {
@@ -213,11 +190,10 @@ double triangle_area(vec3 *a, vec3 *b, vec3 *c) {
 
     return vec3_len(&product) / 2;
 }
+inline double small_fast_len2(vec3 *u) { return fabs(u->x) + fabs(u->y); }
 /********************
  * Electric stuff
  ********************/
-
-inline double small_fast_len2(vec3 *u) { return fabs(u->x) + fabs(u->y); }
 
 
 vec2 find_field(vec2 *position) {
@@ -320,17 +296,6 @@ float *generate_field_line(double r_x0, double r_y0, double g_0) {
                 vec3_copy(&geometry_testing_start_vertex, &geometry_testing_prev_vertex);
                 geometry_testing_start_i = i - 1;
                 geometry_testing_error_area = 0;
-
-                
-                /*printf("pushed: %i%%  %6.2f %6.2f %7.2f  field = %7.4f %7.4f mag_field = %.4f\n",*/
-                       /*(int) (i/iterations * 100),*/
-                       /*geometry_testing_prev_vertex.x,*/
-                       /*geometry_testing_prev_vertex.y,*/
-                       /*geometry_testing_prev_vertex.z,*/
-                    /*field.x,*/
-                    /*field.y,*/
-                    /*mag_field*/
-                /*);*/
             }
         }
         vec3_copy(&geometry_testing_prev_vertex, &geometry_testing_current_vertex);
@@ -376,8 +341,6 @@ double area(int n, double start, double end) {
     for(int i = 0; i<n; i++) {
         double t = start + (end - start) * i / n;
         points[i] = f(t);
-
-        /*printf("f(%f) = [%f, %f, %f]\n", t, points[i].x, points[i].y, points[i].z);*/
     }
     double area = 0;
     for(int i = 0; i<n; i++) {
@@ -395,28 +358,6 @@ double area(int n, double start, double end) {
  *****************/
 
 int main () {
-    /*charges = malloc(4 * sizeof(vec3)); {*/
-      /*(vec3) {-100, 0, -10},*/
-      /*(vec3) {100, 0, -10},*/
-      /*(vec3) {0, -100, +10},*/
-      /*(vec3) {0, 100, +10}*/
-    /*};*/
-    /*double start = 0;*/
-    /*double end = 1;*/
-    /*int n = 100;*/
-
-    /*printf("using double. start=%f, end=%f, n=%i\n", start, end, n);*/
-
-    /*int iterations = 100000;*/
-    /*double starttime = (double) clock() / CLOCKS_PER_SEC;*/
-
-    /*[>printf("area: %f\n", area(n, start, end));<]*/
-    /*for(int i = 0; i < iterations; i++) */
-        /*area(n, start, end);*/
-
-    /*double endtime = (double) clock() / CLOCKS_PER_SEC;*/
-
-    /*printf("time: %f µs\n", (endtime - starttime) * 1000000 / iterations);*/
 
     float *ptr = generate_field_line(-100, -5, 0);
     free(ptr);

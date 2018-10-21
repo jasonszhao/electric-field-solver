@@ -6,10 +6,10 @@
   "main": "field-solver.html",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "zip": "cd functions-dist/ && zip -r generate_field_line_vertices.zip * && rm *.js *.wasm"
+    "zip": "cd functions-dist/ && zip -r generate_field_line_vertices.zip * && rm -f *.js *.wasm"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Jason Zhao <jason@codesmoothie.com>",
+  "license": "MIT",
   "dependencies": {
     "axios": "^0.18.0",
     "gl-matrix": "^2.7.1",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "file-loader": "^1.1.11",
-    "netlify-lambda": "^0.4.0"
+    "netlify-lambda": "^0.4.0",
+    "webpack": "^3.12.0"
   }
 }

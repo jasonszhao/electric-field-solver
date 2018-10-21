@@ -18,3 +18,20 @@ dist/field-solver-wasm.js: field-solver-wasm.c
 dist/field-solver-wasm: field-solver-wasm.c
 	clang -O3 field-solver-wasm.c -o dist/field-solver-wasm
 
+
+deploy: deploy-functions
+
+.PHONY: functions
+deploy-functions: functions-dist/default/index.js
+	gcloud beta functions deploy field_line_vertices --trigger-http --runtime nodejs8 --source functions-dist/default --timeout 540
+
+functions-dist/default/index.js: 
+	webpack
+
+
+# compile using emcc (or gcc/clang for quick testing iterations)
+field-solver-wasm.html: field-solver-wasm.c
+	emcc field-solver-wasm.c -o field-solver-wasm.html
+field-solver-wasm.js: field-solver-wasm.c
+	emcc field-solver-wasm.c -o field-solver-wasm.js
+

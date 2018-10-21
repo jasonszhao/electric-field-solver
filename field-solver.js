@@ -1,5 +1,3 @@
-//const db = new PouchDB("benchmarks")
-//const remoteCouch = 'http://127.0.0.1:5984/benchmarks';
 window.global_start_time = performance.now()
 
 const scene = new THREE.Scene()
@@ -126,12 +124,16 @@ let total_vertices = 0
 let total_iterations = 0
 let total_time_ms = 0
 
+
+/**********************
+ * "Worker" Management
+ **********************/
+
 // TODO: support fallbacks
 const worker_pool = []
 
 
 function getCoreCount() {
-
   let cores = window.navigator.hardwareConcurrency
   if(!cores) {
       // this makes me angry. it's not worth the effort
@@ -152,19 +154,10 @@ const n_workers = 4
 //for(let i = 1; i < n_workers; i++) {
     //worker_pool.push(new WebWorker())
 //}
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
-worker_pool.push(new HTTPWorker())
 
+for (let i=0; i<20; i++) {
+    worker_pool.push(new HTTPWorker())
+}
 
 const queue = []
 const processed = []
@@ -240,10 +233,13 @@ WebWorker.prototype.run = function(args) {
     })
 }
 function HTTPWorker() {
+    /*
     this._endpoint = location.hostname === "localhost"
         ? "//" + location.hostname + ":9000/generate_field_line_vertices"
         : "//" + location.host + "/.netlify/functions/generate_field_line_vertices"
-
+    */
+    this._endpoint = 
+        "https://us-central1-electric-field-solver.cloudfunctions.net/field_line_vertices"
     this.is_busy = false
 }
 HTTPWorker.prototype.run = function(args) {
@@ -339,7 +335,6 @@ function make_log_entry() {
         timestamp: new Date().toISOString(),
     })
 
-    //db.replicate.to(remoteCouch)
     entered = true
 }
 let global_end_time 

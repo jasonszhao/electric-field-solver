@@ -1,3 +1,6 @@
+/*******************
+ * Dependencies 
+ *******************/
 if(typeof require !== 'undefined') {
     const glMatrix = require('gl-matrix')
     var vec2 = glMatrix.vec2
@@ -9,6 +12,8 @@ if(typeof require !== 'undefined') {
     //fs.readFile('./dist/field-solver-wasm.wasm', (err, data) => {
       //WebAssembly.instantiate(data, Module)
     //})
+
+    //var Module = require('./dist/field-solver-wasm.js')
     var Module = require('./dist/field-solver-wasm.js')({
         locateFile: function(s) {
             console.log('requested: ' + s)
@@ -25,6 +30,7 @@ if(typeof require !== 'undefined') {
     })
 }
 
+/***********************/
 let wasm = false
 let is_wasm = () => wasm
 const WasmInitialized = new Promise((resolve, reject) => {
@@ -34,70 +40,67 @@ const WasmInitialized = new Promise((resolve, reject) => {
 })
 
 
+/************************
+ * Functional utilities
+ ************************/
 const l_pad = (length, string) =>
     ('                   ' + string).slice(-parseInt(length, 10))
 
 const small_fast_len2 = a => 
     Math.abs(a[0]) + Math.abs(a[1])
 
+// Adapted from code by Doug Gwyn, http://c-faq.com/fp/fpequal.html
 const RelDif = (a, b) => {
-    let c = Math.abs(a);
-    let d = Math.abs(b);
+    let c = Math.abs(a)
+    let d = Math.abs(b)
 
-    d = Math.max(c, d);
+    d = Math.max(c, d)
 
-    return d == 0.0 ? 0.0 : Math.abs(a - b) / d;
+    return d == 0.0 ? 0.0 : Math.abs(a - b) / d
 }
-
 const float_equal = (a, b) => RelDif(a, b) <= 0.01
 
-//const charges = [
-    //[-100, 0, +10],
-     //[100, 0, -10],
-//]
-const charges = [
-    [-100, 0, -10],
-     [100, 0, -10],
-     [0, -100, +10],
-     [0, 100, +10]
-    ]
+const find_field = (() => {
+    const direction = vec2.create()
+    const field_i = [0,0]
+    const field_output = [0,0]
 
+    return position => {
 
-const direction = vec2.create()
-const field_i = [0,0]
-const field_output = [0,0]
+        field_output[0] = 0
+        field_output[1] = 0
 
-const find_field = position => {
-    field_output[0] = 0
-    field_output[1] = 0
+        for(let i = 0; i<charges.length; i++) {
+            vec2.sub(direction, position, charges[i])
+            
+            const distance = vec2.len(direction)
+            
+            vec2.scale(field_i, direction, -charges[i][2] * Math.pow(distance, -3))
+            
+            vec2.add(field_output, field_output, field_i)
+        }
 
-    for(let i = 0; i<charges.length; i++) {
-        vec2.sub(direction, position, charges[i])
-        
-        const distance = vec2.len(direction)
-        
-        vec2.scale(field_i, direction, -charges[i][2] * Math.pow(distance, -3))
-        
-        vec2.add(field_output, field_output, field_i)
+        return field_output
     }
+})()
 
-    return field_output
-}
+const triangle_area = (() => {
+    const _AB_triangle_area = new Float32Array(3)
+    const _AC_triangle_area = new Float32Array(3)
+    const _product_triangle_area = new Float32Array(3)
 
-const _AB_triangle_area = new Float32Array(3)
-const _AC_triangle_area = new Float32Array(3)
-const _product_triangle_area = new Float32Array(3)
-const triangle_area = (a, b, c) => {
-    vec3.sub(_AB_triangle_area, b, a)
-    vec3.sub(_AC_triangle_area, c, a)
-    vec3.cross(
-        _product_triangle_area, 
-        _AB_triangle_area, 
-        _AC_triangle_area
-    )
+    return (a, b, c) => {
+        vec3.sub(_AB_triangle_area, b, a)
+        vec3.sub(_AC_triangle_area, c, a)
+        vec3.cross(
+            _product_triangle_area, 
+            _AB_triangle_area, 
+            _AC_triangle_area
+        )
 
-    return vec3.len(_product_triangle_area) / 2;
-}
+        return vec3.len(_product_triangle_area) / 2;
+    }
+})()
 
 console.assert(float_equal(
     triangle_area([0,0,1], [0,1,0], [0,0,0]), 
@@ -112,22 +115,32 @@ console.assert(float_equal(
 let targetWasm = true
 
 const N_SIG_FIGS = 6
-
 const nabla = 10
 const min_resolution = 3
 const max_error_area = 0.25
 const min_average_resolution = 100
-const iterations = 6e8
+const iterations = 6e7
 const MAX_VERTICES_PER_LINE = Math.floor(Math.log2(iterations) * 25 / max_error_area)
+//const charges = [
+    //[-100, 0, +10],
+     //[100, 0, -10],
+//]
+const charges = [
+    [-100, 0, -10],
+     [100, 0, -10],
+     [0, -100, +10],
+     [0, 100, +10]
+    ]
 
-/*********************************8
- * 
- ***********************************/
+/*********************************************
+ * Implementations of the field line vertices
+ *********************************************/
 
 function wasm_generate_field_line_vertices(r_0, r_1, g_0) {
     const sizeof_float = 4
     const sizeof_double = 8
     const flat1 = x => x.reduce((acc, e) => acc.concat(e), [])
+
     //setup
     Module._set_nabla(nabla)
     Module._set_max_error_area(max_error_area )
@@ -139,16 +152,11 @@ function wasm_generate_field_line_vertices(r_0, r_1, g_0) {
     const flattened_charges = flat1(charges)
     Module.HEAPF64.set(flattened_charges, charges_ptr / sizeof_double)
     Module._set_charges (charges.length, charges_ptr)
-
-
     //end setup
 
     const ptr = Module._generate_field_line(r_0, r_1, g_0 )
-
     const n_vertices = Module.HEAPF32[ptr / sizeof_float] 
-
     const vertices = new Float32Array(Module.wasmMemory.buffer, ptr + (3 * sizeof_float), (n_vertices + 1) * 3)
-
     Module._free(ptr)
 
     return {
@@ -288,3 +296,4 @@ if(typeof module !== 'undefined') {
         is_wasm
     }
 }
+
