@@ -25,7 +25,7 @@ deploy: deploy-functions
 deploy-functions: functions-dist/default/index.js
 	gcloud beta functions deploy field_line_vertices --trigger-http --runtime nodejs8 --source functions-dist/default --timeout 540
 
-functions-dist/default/index.js: 
+functions-dist/default/index.js: functions/default/index.js
 	webpack
 
 

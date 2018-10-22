@@ -27,6 +27,16 @@
     <script src="./node_modules/axios/dist/axios.min.js"></script>
     <script src="./node_modules/three/build/three.js"></script>
     <script src="./node_modules/gl-matrix/dist/gl-matrix.js"></script>
+    <script src="./node_modules/flyd/flyd.min.js"></script>
+    <script>
+      // from
+      // https://github.com/paldepind/flyd/blob/b2ced63/module/filter/index.js
+      flyd.filter = flyd.curryN(2, function(fn, s) {
+        return flyd.combine(function(s, self) {
+          if (fn(s())) self(s.val);
+        }, [s]);
+      });
+    </script>
     <script src="https://unpkg.com/three@0.91.0/examples/js/controls/OrbitControls.js"></script>
     <script src="dist/field-solver-wasm.js"></script>
     <script src="field-solver-common.js"></script>

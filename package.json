@@ -12,12 +12,12 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^0.18.0",
+    "flyd": "^0.2.8",
     "gl-matrix": "^2.7.1",
     "three": "^0.94.0"
   },
   "devDependencies": {
     "file-loader": "^1.1.11",
-    "netlify-lambda": "^0.4.0",
-    "webpack": "^3.12.0"
+    "netlify-lambda": "^0.4.0"
   }
 }

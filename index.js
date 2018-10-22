@@ -112,16 +112,19 @@ let total_time_ms = 0
  **********************/
 
 const worker_manager = new WorkerManager()
-const {worker_pool, n_workers} = worker_manager
+const {worker_pool, queue, processed} = worker_manager
 const queue_push = worker_manager.queue_push.bind(worker_manager)
+const worker_add = worker_manager.worker_add.bind(worker_manager)
+
+const n_workers = 70
 
 for (let i=0; i<n_workers; i++) {
-    worker_pool.push(new HTTPWorker())
+    worker_add(new HTTPWorker())
 }
 
 function BrowserWorker() {
     this._internal = new Worker('field-solver-worker.js')
-    this.is_busy = false
+    this.is_busy = flyd.stream(false)
 }
 BrowserWorker.prototype.run = function(args) {
     this._internal.postMessage(...args)
@@ -141,8 +144,11 @@ function HTTPWorker() {
     */
     this._endpoint = 
         "https://us-central1-electric-field-solver.cloudfunctions.net/field_line_vertices"
-    this.is_busy = false
+    this.is_busy = flyd.stream(true)
+
+    axios.get(this._endpoint).then(() => { this.is_busy(false) })
 }
+
 HTTPWorker.prototype.run = function(args) {
     return axios.get(this._endpoint, 
                     {params: {r_0: args[0], r_1: args[1], g_0: args[2]}})
@@ -243,7 +249,7 @@ Promise.all(promises).then(values => {
         (total_time_ms * 10e6 / iterations).toExponential()
 
     console.log(
-        `Finished all lines. \n` + 
+        `Finished all lines in ${global_total_time / 1000} s. \n` + 
         `   total_vertices=${total_vertices.toExponential()}, \n` +
         `   total_iterations=${total_iterations.toExponential()} \n` +
         `   average time / iteration = ${avg_time_per_iteration_ns} ns \n`

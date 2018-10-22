@@ -24,7 +24,7 @@ const run_f = args => worker => {
         .catch(e => console.error(e))
         
         .then(result => {
-            worker.is_busy = false
+            worker.is_busy(false)
 
             return {
                 args,
@@ -40,12 +40,11 @@ const run_f = args => worker => {
 
 
 function WorkerManager() {
-    // TODO: support fallbacks
-    this.n_workers = 19
+    // TODO: support fallbacks when worker errors out
 
     /*
     interface AbstractWorker<T>() {
-      is_busy: Boolean,
+      is_busy: flyd.Stream(Boolean),
       destroy: () => {},
       run: args => Promise(T)
     }
@@ -65,14 +64,14 @@ function WorkerManager() {
 }
 
 WorkerManager.prototype.queue_pluck_one = function () {
-    const available_worker = this.worker_pool.find(w => !w.is_busy)
+    const available_worker = this.worker_pool.find(w => !w.is_busy())
 
     if(available_worker === undefined)
         return
 
-    let job = this.queue.shift()
+    const job = this.queue.shift()
     if(job !== undefined) {
-        available_worker.is_busy = true
+        available_worker.is_busy(true)
         job(available_worker)
     }
 }
@@ -95,6 +94,20 @@ WorkerManager.prototype.queue_push = function (args) {
 
         this.queue_pluck_one()
     })
+}
+
+WorkerManager.prototype.worker_add = function(worker) {
+    flyd.on(is_busy => {
+        
+        const job = this.queue.shift()
+        if(job !== undefined) {
+            worker.is_busy(true)
+            job(worker)
+        }
+
+    }, flyd.filter(x => !x, worker.is_busy))
+
+    this.worker_pool.push(worker)
 }
 
 
