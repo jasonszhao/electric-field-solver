@@ -1,15 +1,21 @@
+/**********
+ * State
+ **********/
 window.global_start_time = performance.now()
+let resize_dirty = false
+
+/************
+ * END State
+ ************/
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color( 0xdddddd );
+scene.background = new THREE.Color( 0xdddddd )
 
-let width = window.innerWidth
-let height = window.innerHeight
 const camera = new THREE.OrthographicCamera(
-    width / - 2, 
-    width / 2, 
-    height / 2,
-    height / - 2, 
+    window.innerWidth / - 2, 
+    window.innerWidth / 2, 
+    window.innerHeight / 2,
+    window.innerHeight / - 2, 
     -1200, 
     100000 
 )
@@ -17,7 +23,7 @@ camera.position.y = 100
 camera.position.z = 500
 camera.position.x = 100
 
-const controls = new THREE.OrbitControls( camera );
+const controls = new THREE.OrbitControls(camera)
 
 const renderer = new THREE.WebGLRenderer()
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -50,28 +56,48 @@ const debugaxis = function(axisLength){
     createAxis(v(0, 0, -axisLength), v(0, 0, axisLength), 0x0000FF)
 }
 
-debugaxis(100);
+debugaxis(100)
 /***************************************
  * END Code by Matt Hobbs
  ***************************************/
 
+
+/***************************************
+ * Animation
+ ***************************************/
 function animate() {
-    controls.update();
+    if (resize_dirty) {
+        renderer.setSize( window.innerWidth, window.innerHeight )
+        camera.aspect = window.innerWidth / window.innerHeight
+        camera.left = window.innerWidth / -2
+        camera.right = window.innerWidth / 2
+        camera.top = window.innerHeight / 2
+        camera.bottom = window.innerHeight / -2
+        camera.updateProjectionMatrix()
+
+        resize_dirty = false
+    }
+
+    controls.update()
     renderer.render(scene, camera)
 
     window.requestAnimationFrame(animate)
 }
 
+window.addEventListener( 'resize', function onWindowResize() {
+    resize_dirty = true
+}, false)
+
 
 //-----------
 
 charges.forEach(c => {
-    const geometry = new THREE.CylinderBufferGeometry( 1, 1, 800, 32 );
-    const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
-    const cylinder = new THREE.Mesh( geometry, material );
+    const geometry = new THREE.CylinderBufferGeometry( 1, 1, 800, 32 )
+    const material = new THREE.MeshBasicMaterial( {color: 0xffff00} )
+    const cylinder = new THREE.Mesh( geometry, material )
     cylinder.position.x = c[0]
     cylinder.position.z = c[1]
-    scene.add( cylinder );
+    scene.add(cylinder)
 })
 
 
@@ -147,7 +173,6 @@ function create_line(data) {
     geometries.push(geometry)
     return vertices
 }
-
 
 
 const promises = []
