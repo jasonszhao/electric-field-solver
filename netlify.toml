@@ -3,4 +3,3 @@
 
 [Build]
   Publish = ""
-  Functions = "./functions-dist/"
