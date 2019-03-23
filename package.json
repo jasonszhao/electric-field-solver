@@ -13,7 +13,7 @@
   "dependencies": {
     "axios": "^0.18.0",
     "flyd": "^0.2.8",
-    "gl-matrix": "^2.7.1",
+    "gl-matrix": "^2.8.1",
     "three": "^0.94.0"
   },
   "devDependencies": {
