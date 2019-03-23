@@ -12,9 +12,9 @@ Suppose there is neither acceleration nor inertia in this universe: a ball rolls
 
 3. Each field line (actually a curve) was approximated by drawing straight lines between the millions of steps the program took in space. But the browser froze when it tried to render all these tiny segments, and I wanted the user to be able to smoothly interact with the visualization. 
 
-  In order to do that, I needed to use a few lines to approximate many lines. The program starts at the last plotted point and keep skipping points in the list until it exceeds a certain error threshold, at which it backs up and plots the last point it skipped. I created an error metric for this purpose: The list of skipped points forms a fan of triangles that all share the last plotted point. The error is equal to the area of this fan. 
+   In order to do that, I needed to use a few lines to approximate many lines. The program starts at the last plotted point and keep skipping points in the list until it exceeds a certain error threshold, at which it backs up and plots the last point it skipped. I created an error metric for this purpose: The list of skipped points forms a fan of triangles that all share the last plotted point. The error is equal to the area of this fan. 
 
-  This curve simplification method retained visual resolution and reduced the number of plotted points 35,000 fold. (Because of time constraints, and the method appeared to work very well for my cases, I didn’t try to prove that my error metric would work for all cases.) 
+   This curve simplification method retained visual resolution and reduced the number of plotted points 35,000 fold. (Because of time constraints, and the method appeared to work very well for my cases, I didn’t try to prove that my error metric would work for all cases.) 
 
 4. The browser was still unresponsive while computing lines. I moved the computations off the main processing thread so user interactions and line computations could take place simultaneously. Lines were still computed one at a time, though.
 
