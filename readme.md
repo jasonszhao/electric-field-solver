@@ -2,7 +2,7 @@
 
 
 
-## How did I make this (outdated; overly poetic)?
+## How did I make this (needs to be rewritten; overly poetic)?
 
 Suppose there is neither acceleration nor inertia in this universe: a ball rolls down a curved surface. At every point, the ball’s velocity is reset to zero and then redetermined by the slope of the surface. Given this ball and the slope of the surface at every ordered pair, I wish to map the contours of the surface. I want to find voltage, the height, given the electric field, the slope. 
 
