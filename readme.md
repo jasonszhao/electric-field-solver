@@ -40,6 +40,5 @@ include build tools or runtime code added by build tools.
  - [glMatrix](http://glmatrix.net) for efficient representation and manipulation of vectors in JavaScript
  - [Axios](https://github.com/axios/axios) for making network requests
  - [Flyd](https://github.com/paldepind/flyd) for wiring things up functionally
- - Matt Hobbs’ [axes drawing code](https://nooshu.github.io/lab/2011-05-15-debug-axes-in-three-js/) (CC BY 4.0)
  - Doug Gwyn's [floating point comparison code](http://c-faq.com/fp/fpequal.html) (adapted)
 

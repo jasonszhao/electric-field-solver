@@ -56,7 +56,7 @@ const debugaxis = function(axisLength){
     createAxis(v(0, 0, -axisLength), v(0, 0, axisLength), 0x0000FF)
 }
 
-debugaxis(100)
+// debugaxis(100) // for debugging 
 /***************************************
  * END Code by Matt Hobbs
  ***************************************/
@@ -97,7 +97,8 @@ charges.forEach(c => {
     const cylinder = new THREE.Mesh( geometry, material )
     cylinder.position.x = c[0]
     cylinder.position.z = c[1]
-    scene.add(cylinder)
+
+    // scene.add(cylinder) // for debugging
 })
 
 
