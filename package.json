@@ -1,14 +1,14 @@
 {
   "name": "electric-field-solver",
   "version": "1.0.0",
-  "repository": "https://github.com/jasonszhao/electric-field-solver",
+  "repository": "",
   "description": "",
   "main": "field-solver.html",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "zip": "cd functions-dist/ && zip -r generate_field_line_vertices.zip * && rm -f *.js *.wasm"
   },
-  "author": "Jason Zhao <jason@codesmoothie.com>",
+  "author": "",
   "license": "MIT",
   "dependencies": {
     "axios": "^0.19.0",

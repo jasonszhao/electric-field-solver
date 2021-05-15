@@ -1,0 +1,3 @@
+creates build in _site/:
+
+npm i --production && npm prune --production && mkdir _site && shopt -s extglob && cp -R !(_site) _site/
