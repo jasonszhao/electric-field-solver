@@ -144,7 +144,9 @@ function HTTPWorker() {
         : "//" + location.host + "/.netlify/functions/generate_field_line_vertices"
     */
     this._endpoint = 
-        "https://us-central1-electric-field-solver.cloudfunctions.net/field_line_vertices"
+         "//" + location.host + "/.netlify/functions/field_line_vertices"
+	// "https://us-central1-electric-field-solver.cloudfunctions.net/field_line_vertices" // Google Cloud
+	
     this.is_busy = flyd.stream(true)
 
     axios.get(this._endpoint).then(() => { this.is_busy(false) })
